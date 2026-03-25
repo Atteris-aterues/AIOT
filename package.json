@@ -12,11 +12,13 @@
     "format": "oxfmt src/"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
     "@inspira-ui/plugins": "^0.0.2",
     "@tailwindcss/vite": "^4.2.1",
     "@vueuse/core": "^14.2.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "element-plus": "^2.13.6",
     "lucide-vue-next": "^0.577.0",
     "motion-v": "^2.0.0",
     "simplex-noise": "^4.0.3",
