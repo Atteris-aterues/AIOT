@@ -37,7 +37,7 @@ const emit = defineEmits<{
   (e: 'update:avatar', url: string): void
 }>()
 
-const defaultAvatar = 'https://via.placeholder.com/120/7e66ea/ffffff?text=User'
+const defaultAvatar = 'https://placehold.co/120x120/7e66ea/ffffff?text=User'
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
 const triggerUpload = () => {

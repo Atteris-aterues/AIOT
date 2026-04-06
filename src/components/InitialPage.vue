@@ -29,12 +29,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import WavyBackground from './ui/wavy-background/WavyBackground.vue'
 import LoginBox from './login/LoginBox.vue'
 
+const router = useRouter()
 // 控制登录框显示
 const showLogin = ref(false)
+
+// 检查登录状态
+onMounted(() => {
+  const token = localStorage.getItem('token')
+  if (token) {
+    router.push('/home')
+  }
+})
 
 // 处理登录
 const handleLogin = (data: { account: string; password: string }) => {

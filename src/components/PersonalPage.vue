@@ -22,7 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AvatarUpload from './personal/AvatarUpload.vue'
 import NicknameEdit from './personal/NicknameEdit.vue'
@@ -31,8 +31,25 @@ import LogoutButton from './personal/LogoutButton.vue'
 import type { PasswordForm } from './personal/types'
 
 const router = useRouter()
-const avatarUrl = ref('https://via.placeholder.com/120/7e66ea/ffffff?text=User')
-const nickname = ref('张三')
+const avatarUrl = ref('https://placehold.co/120x120/7e66ea/ffffff?text=User')
+const nickname = ref('')
+
+onMounted(() => {
+  // 从 localStorage 获取登录时的用户信息
+  const userStr = localStorage.getItem('user')
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr)
+      // 优先使用 nickname，如果没有则使用 username
+      nickname.value = user.nickname || user.username || '用户'
+      if (user.avatar) {
+        avatarUrl.value = user.avatar
+      }
+    } catch (e) {
+      console.error('解析用户信息失败:', e)
+    }
+  }
+})
 
 const handlePasswordChange = (form: PasswordForm) => {
   // 这里调用修改密码接口
@@ -40,6 +57,9 @@ const handlePasswordChange = (form: PasswordForm) => {
 }
 
 const handleLogout = () => {
+  // 清除本地存储的登录信息
+  localStorage.removeItem('token')
+  localStorage.removeItem('user')
   // 跳转到登录页
   router.push('/')
 }

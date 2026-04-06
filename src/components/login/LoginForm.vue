@@ -43,13 +43,6 @@
       <span v-if="loading">登录中...</span>
       <span v-else>登录</span>
     </button>
-
-    <!-- 测试账号提示 -->
-    <div v-if="showMockHint" class="mt-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-700">
-      <p class="font-medium mb-1"> 测试账号：</p>
-      <p>账号：test@example.com</p>
-      <p>密码：123456</p>
-    </div>
   </form>
 </template>
 
@@ -61,9 +54,8 @@ interface LoginForm {
   password: string
 }
 
-const props = defineProps<{
+defineProps<{
   loading: boolean
-  showMockHint?: boolean
 }>()
 
 const emit = defineEmits<{

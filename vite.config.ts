@@ -16,4 +16,13 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://55be0101.r29.cpolar.top',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
 })

@@ -3,98 +3,27 @@
 import SideBarContainer from './SideBarContainer.vue'
 import HistoryList from './HistoryList.vue'
 import UserFooter from './UserFooter.vue'
-import { ref, provide } from 'vue'
+import { ref, provide, onMounted } from 'vue'
+import { getSessionList, renameSession, pinSession, deleteSession } from '@/api/chat'
+import { ElMessage } from 'element-plus'
 
 // 定义历史记录项的类型
 interface HistoryItem {
   id: string;
   title: string;
   timestamp: Date;
+  pinned?: boolean;
 }
 
 // 定义组件 Props
 interface Props {
-  initialHistory?: HistoryItem[];
   userName?: string;
   userAvatar?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  // 将所有函数定义移到 withDefaults 内部
-  initialHistory: () => {
-    // 基础历史记录
-    const defaultItems = [
-      {
-        id: '1',
-        title: '教学大纲设计',
-        timestamp: new Date(2024, 0, 15, 10, 30),
-      },
-      {
-        id: '2',
-        title: '文档润色',
-        timestamp: new Date(2024, 0, 14, 15, 45),
-      },
-      {
-        id: '3',
-        title: 'PPT设计思路',
-        timestamp: new Date(2024, 0, 13, 9, 20),
-      },
-      {
-        id: '4',
-        title: '知识点重点分析',
-        timestamp: new Date(2024, 0, 12, 14, 10),
-      },
-      {
-        id: '5',
-        title: '课堂活动设计',
-        timestamp: new Date(2024, 0, 11, 11, 0),
-      },
-      {
-        id: '6',
-        title: '历史记录示例 6',
-        timestamp: new Date(2024, 0, 10, 16, 30),
-      },
-      {
-        id: '7',
-        title: '历史记录示例 7',
-        timestamp: new Date(2024, 0, 9, 13, 15),
-      },
-    ]
-
-    // 生成更多历史记录
-    const generateMoreItems = () => {
-      const items: HistoryItem[] = []
-      const titles = [
-        '教学大纲设计', '文档润色', 'PPT设计思路', '知识点重点分析', '课堂活动设计',
-        '课程规划讨论', '学生作业批改', '考试题目生成', '学习资料整理', '教学反思记录',
-        '家长会准备', '教研活动记录', '课题研究进展', '教学资源收集', '公开课准备',
-        '学期总结报告', '教学计划制定', '学生成绩分析', '教学方法探讨', '教育技术应用'
-      ]
-      
-      for (let i = 1; i <= 50; i++) {
-        const randomTitle = titles[Math.floor(Math.random() * titles.length)]
-        const randomDays = Math.floor(Math.random() * 30)
-        const randomHours = Math.floor(Math.random() * 24)
-        const randomMinutes = Math.floor(Math.random() * 60)
-        
-        const date = new Date()
-        date.setDate(date.getDate() - randomDays)
-        date.setHours(randomHours, randomMinutes)
-        
-        items.push({
-          id: `history-${i}`,
-          title: `${randomTitle} ${i}`,
-          timestamp: date
-        })
-      }
-      
-      return items.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-    }
-
-    return [...defaultItems, ...generateMoreItems()]
-  },
   userName: '张三',
-  userAvatar: 'https://via.placeholder.com/40',
+  userAvatar: 'https://placehold.co/40x40',
 })
 
 // 定义事件
@@ -107,7 +36,36 @@ const emit = defineEmits<{
 // 状态管理
 const isSidebarExpanded = ref<boolean>(true)
 const selectedId = ref<string>('')
-const historyItems = ref<HistoryItem[]>([...props.initialHistory])
+const historyItems = ref<HistoryItem[]>([])
+const loading = ref(false)
+
+// 获取会话列表
+const fetchSessionList = async () => {
+  loading.value = true
+  try {
+    const res = await getSessionList({
+      keyword: '',
+      page: 1,
+      size: 50
+    })
+    if (res.code === 200) {
+      historyItems.value = res.data.items.map(item => ({
+        id: item.sessionId,
+        title: item.title,
+        timestamp: new Date(item.updateTime || item.createTime),
+        pinned: item.pinned
+      }))
+    }
+  } catch (error) {
+    console.error('获取会话列表失败:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchSessionList()
+})
 
 // 重命名相关状态
 const renamingId = ref<string | null>(null)
@@ -151,16 +109,22 @@ const handleRename = (id: string) => {
 }
 
 // 保存重命名
-const saveRename = () => {
+const saveRename = async () => {
   if (renamingId.value && newTitle.value.trim()) {
-    const index = historyItems.value.findIndex(item => item.id === renamingId.value)
-    if (index !== -1) {
-      const updatedItem: HistoryItem = {
-        id: renamingId.value,
-        title: newTitle.value.trim(),
-        timestamp: historyItems.value[index].timestamp
+    try {
+      const res = await renameSession({
+        sessionId: renamingId.value,
+        title: newTitle.value.trim()
+      })
+      if (res.code === 200) {
+        const index = historyItems.value.findIndex(item => item.id === renamingId.value)
+        if (index !== -1) {
+          historyItems.value[index].title = res.data.title
+        }
+        ElMessage.success('重命名成功')
       }
-      historyItems.value[index] = updatedItem
+    } catch (error) {
+      console.error('重命名失败:', error)
     }
   }
   cancelRename()
@@ -173,26 +137,48 @@ const cancelRename = () => {
 }
 
 // 处理置顶
-const handlePin = (id: string) => {
-  const index = historyItems.value.findIndex(item => item.id === id)
-  if (index > 0) {
-    const item = historyItems.value[index]
-    if (item) {
-      historyItems.value.splice(index, 1)
-      historyItems.value.unshift(item)
+const handlePin = async (id: string) => {
+  const item = historyItems.value.find(item => item.id === id)
+  if (!item) return
+
+  try {
+    const res = await pinSession({
+      sessionId: id,
+      pin: !item.pinned
+    })
+    if (res.code === 200) {
+      item.pinned = res.data.pinned
+      // 重新排序：置顶的放前面
+      historyItems.value.sort((a, b) => {
+        if (a.pinned && !b.pinned) return -1
+        if (!a.pinned && b.pinned) return 1
+        return b.timestamp.getTime() - a.timestamp.getTime()
+      })
+      ElMessage.success(item.pinned ? '已置顶' : '已取消置顶')
     }
+  } catch (error) {
+    console.error('置顶操作失败:', error)
   }
 }
 
 // 处理删除
-const handleDelete = (id: string) => {
+const handleDelete = async (id: string) => {
   if (confirm('确定要删除这条历史记录吗？')) {
-    const index = historyItems.value.findIndex(item => item.id === id)
-    if (index !== -1) {
-      historyItems.value.splice(index, 1)
-      if (selectedId.value === id) {
-        selectedId.value = ''
+    try {
+      const res = await deleteSession({ sessionId: id })
+      if (res.code === 200) {
+        const index = historyItems.value.findIndex(item => item.id === id)
+        if (index !== -1) {
+          historyItems.value.splice(index, 1)
+          if (selectedId.value === id) {
+            selectedId.value = ''
+            emit('new-chat') // 如果删除了当前选中的，跳转到新对话
+          }
+        }
+        ElMessage.success('删除成功')
       }
+    } catch (error) {
+      console.error('删除会话失败:', error)
     }
   }
 }
@@ -217,7 +203,8 @@ const formatTime = (date: Date): string => {
 provide('format-time-fn', formatTime)
 
 defineExpose({
-  isSidebarExpanded
+  isSidebarExpanded,
+  fetchSessionList
 })
 </script>
 

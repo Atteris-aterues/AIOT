@@ -14,7 +14,10 @@
 
 <script setup lang="ts">
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useRouter } from 'vue-router'
+import { logout } from '@/api/user'
 
+const router = useRouter()
 const emit = defineEmits<{
   (e: 'logout'): void
 }>()
@@ -28,9 +31,18 @@ const handleLogout = () => {
       cancelButtonText: '取消',
       type: 'warning',
     }
-  ).then(() => {
-    ElMessage.success('已退出登录')
-    emit('logout')
+  ).then(async () => {
+    try {
+      await logout()
+    } catch (error) {
+      console.error('退出登录请求失败:', error)
+    } finally {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      ElMessage.success('已退出登录')
+      router.push('/')
+      emit('logout')
+    }
   }).catch(() => {})
 }
 </script>

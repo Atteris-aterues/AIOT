@@ -23,7 +23,6 @@
         <!-- 登录表单 -->
         <LoginForm 
           :loading="loading"
-          :show-mock-hint="true"
           @submit="handleLogin"
         />
 
@@ -47,6 +46,8 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import LoginForm from './LoginForm.vue'
+import { login } from '@/api/user'
+import { ElMessage } from 'element-plus'
 
 // Props
 defineProps<{
@@ -61,15 +62,6 @@ const emit = defineEmits<{
 const router = useRouter()
 const loading = ref(false)
 
-// 假数据 - 测试账户
-const MOCK_USERS = [
-  {
-    account: 'test@example.com',
-    password: '123456',
-    username: '测试用户'
-  }
-]
-
 // 关闭登录框
 const handleClose = () => {
   emit('close')
@@ -79,33 +71,33 @@ const handleClose = () => {
 const handleLogin = async (form: { account: string; password: string }) => {
   loading.value = true
   
-  // 模拟网络延迟
-  await new Promise(resolve => setTimeout(resolve, 1000))
-  
-  // 验证账号密码
-  const user = MOCK_USERS.find(
-    u => u.account === form.account && u.password === form.password
-  )
+  try {
+    const res = await login({
+      username: form.account,
+      password: form.password
+    })
 
-  if (user) {
-    // 登录成功
-    console.log('登录成功:', user)
-    
-    // 可以在这里保存登录状态，比如使用 localStorage
-    localStorage.setItem('isLoggedIn', 'true')
-    localStorage.setItem('username', user.username)
-    
-    // 关闭登录框
-    handleClose()
-    
-    // 跳转到首页
-    router.push('/home')
-  } else {
-    // 登录失败
-    alert('账号或密码错误！\n\n测试账号：\n账号：test@example.com / 13800138000 / demo\n密码：123456 / demo123')
+    if (res.code === 200) {
+      // 登录成功
+      console.log('登录成功:', res.data.user)
+      
+      // 保存 token 和用户信息
+      localStorage.setItem('token', res.data.token)
+      localStorage.setItem('user', JSON.stringify(res.data.user))
+      
+      ElMessage.success('登录成功')
+      
+      // 关闭登录框
+      handleClose()
+      
+      // 跳转到首页
+      router.push('/home')
+    }
+  } catch (error: any) {
+    console.error('登录失败:', error)
+  } finally {
+    loading.value = false
   }
-  
-  loading.value = false
 }
 
 // 跳转到注册页面

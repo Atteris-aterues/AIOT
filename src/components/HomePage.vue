@@ -8,7 +8,7 @@
       @new-chat="handleNewChat"
       @update-user="handleUpdateUser"
       :user-name="'张三'"
-      :user-avatar="'https://via.placeholder.com/40'"
+      :user-avatar="'https://placehold.co/40x40'"
     />
     
     <!-- 主内容区 -->
@@ -61,12 +61,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import VanishingInput from "./ui/vanishing-input/VanishingInput.vue";
 import MessageList from "./Dialog/MessageList.vue";
 import SideBar from "@/components/SideBar/index.vue";
 import type { UploadedFile } from "./ui/vanishing-input/FileUploader/types";
 import type { Message } from "./Dialog/types";
+import { 
+  createSession, 
+  getSessionDetail, 
+  sendMessage, 
+  stopChat, 
+  editAndRegenerate,
+  uploadMaterial 
+} from '@/api/chat'
+import { ElMessage } from 'element-plus'
 
 const placeholders = [
   "协助制作教学大纲",
@@ -81,114 +90,51 @@ const messages = ref<Message[]>([]);
 const sidebarRef = ref<InstanceType<typeof SideBar> | null>(null);
 const isProcessing = ref(false);
 const isGenerating = ref(false);
-let currentTypingController: AbortController | null = null;
-let currentTimeout: number | null = null;
+const currentSessionId = ref<string | null>(null);
+const sceneType = ref(1); // 默认为1
 
 // 停止当前生成
-const stopCurrentGeneration = () => {
-  if (currentTypingController) {
-    currentTypingController.abort();
-    currentTypingController = null;
-  }
-  if (currentTimeout) {
-    clearTimeout(currentTimeout);
-    currentTimeout = null;
-  }
-  isGenerating.value = false;
-};
-
-// 生成唯一ID
-const generateId = (): string => {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-};
-
-// 模拟AI回复 - 支持停止
-const simulateAIResponse = async (userMessage: string, files?: UploadedFile[]) => {
-  // 创建新的 AbortController
-  currentTypingController = new AbortController();
-  const signal = currentTypingController.signal;
-  
-  let responseText = '';
-  if (files && files.length > 0) {
-    responseText = `我已经收到了您的问题：「${userMessage}」以及 ${files.length} 个文件。\n\n根据您提供的信息，我为您分析如下：\n\n1. 这是一个示例回复，实际应用中会接入真实的AI模型\n2. 您上传的文件可以帮助我更好地理解您的需求\n3. 如果您需要更详细的帮助，请告诉我具体的问题`;
-  } else {
-    responseText = `关于「${userMessage}」这个问题，我的建议是：\n\n1. 首先，这是一个示例回复，实际应用中会接入真实的AI模型\n2. 您可以根据具体需求进一步细化问题\n3. 如果需要更详细的帮助，请告诉我更多信息`;
-  }
-  
-  const assistantMessage: Message = {
-    id: generateId(),
-    type: 'assistant',
-    content: responseText,
-    timestamp: Date.now(),
-    displayContent: ''
-  };
-  
-  messages.value.push(assistantMessage);
-  
-  // 开始打字效果
-  isGenerating.value = true;
-  
-  // 逐字输出
-  for (let i = 0; i <= responseText.length; i++) {
-    // 检查是否被中止
-    if (signal.aborted) {
-      // 停止生成，保留已生成的内容
-      assistantMessage.displayContent = responseText.substring(0, i);
-      assistantMessage.content = responseText.substring(0, i);
-      break;
+const handleStopGeneration = async () => {
+  if (currentSessionId.value) {
+    try {
+      await stopChat({ sessionId: currentSessionId.value });
+      ElMessage.success('已停止生成');
+    } catch (error) {
+      console.error('停止生成失败:', error);
     }
-    
-    assistantMessage.displayContent = responseText.substring(0, i);
-    
-    // 使用 Promise 包装 setTimeout，支持中止
-    await new Promise((resolve, reject) => {
-      currentTimeout = window.setTimeout(resolve, 30);
-      signal.addEventListener('abort', () => {
-        if (currentTimeout) {
-          clearTimeout(currentTimeout);
-          currentTimeout = null;
-        }
-        reject(new Error('aborted'));
-      });
-    }).catch(err => {
-      if (err.message === 'aborted') {
-        // 被中止，退出循环
-        return;
-      }
-    });
   }
-  
   isGenerating.value = false;
-  currentTypingController = null;
+  isProcessing.value = false;
 };
 
-// 处理编辑消息
-const handleEditMessage = async (messageId: string, newContent: string) => {
-  const messageIndex = messages.value.findIndex(m => m.id === messageId);
-  if (messageIndex !== -1 && messages.value[messageIndex]) {
-    const originalMessage = messages.value[messageIndex];
-    
-    // 更新消息内容
-    originalMessage.content = newContent
-    originalMessage.edited = true
-    originalMessage.content = newContent;
-    
-    // 停止当前正在进行的生成
-    stopCurrentGeneration();
-    
-    // 移除该消息之后的所有消息（因为编辑后需要重新生成回复）
-    messages.value = messages.value.slice(0, messageIndex + 1);
-    
-    // 触发AI重新回复
-    isProcessing.value = true
-    isGenerating.value = true
-    
-    // 模拟AI回复
-    await simulateAIResponse(newContent, originalMessage.files);
-    
-    isProcessing.value = false
-    isGenerating.value = false
-  }
+// 格式化后端消息为前端消息
+const formatMessage = (item: any): Message => {
+  return {
+    id: item.messageId?.toString() || `${Date.now()}-${Math.random()}`,
+    type: item.role === 'user' ? 'user' : 'assistant',
+    content: item.content || item.reply || '',
+    timestamp: Date.now(),
+    displayContent: item.content || item.reply || ''
+  };
+};
+
+// 处理文件上传并获取 fileIds
+const uploadFiles = async (files: UploadedFile[], sessionId: string): Promise<number[]> => {
+  if (!files || files.length === 0) return [];
+  
+  const uploadPromises = files.map(file => {
+    // 这里需要将 UploadedFile 转换为 File 对象，或者调整接口
+    // 假设 UploadedFile 包含原始 File 对象
+    if (file.file) {
+      return uploadMaterial(file.file, sessionId);
+    }
+    return Promise.resolve(null);
+  });
+
+  const results = await Promise.all(uploadPromises);
+  return results
+    .filter((res): res is any => res !== null && res.code === 200)
+    .map(res => res.data.fileId);
 };
 
 // 处理首次提交（从中间输入框）
@@ -196,90 +142,191 @@ const handleFirstSubmit = async (data: { text: string, files: UploadedFile[] }) 
   if ((!data.text || !data.text.trim()) && (!data.files || data.files.length === 0)) {
     return;
   }
-  if (isProcessing.value) {
-    return;
-  }
-  
-  // 停止正在进行的生成
-  stopCurrentGeneration();
-  
+  if (isProcessing.value) return;
+
   isProcessing.value = true;
   
-  // 添加用户消息
-  const userMessage: Message = {
-    id: generateId(),
-    type: 'user',
-    content: data.text || '',
-    files: data.files,
-    timestamp: Date.now()
-  };
-  
-  messages.value.push(userMessage);
-  
-  // 清空输入框
-  inputText.value = '';
-  
-  // 模拟AI回复
-  await simulateAIResponse(data.text || '', data.files);
-  
-  isProcessing.value = false;
+  try {
+    // 1. 创建会话
+    const sessionRes = await createSession({
+      sceneType: sceneType.value,
+      firstPrompt: data.text || '新对话'
+    });
+
+    if (sessionRes.code === 200) {
+      currentSessionId.value = sessionRes.data.sessionId;
+      
+      // 2. 添加用户消息到本地
+      const userMsg: Message = {
+        id: `temp-user-${Date.now()}`,
+        type: 'user',
+        content: data.text,
+        files: data.files,
+        timestamp: Date.now()
+      };
+      messages.value.push(userMsg);
+      inputText.value = '';
+
+      // 3. 上传文件（如果有）
+      const fileIds = await uploadFiles(data.files, currentSessionId.value);
+
+      // 4. 发送消息
+      isGenerating.value = true;
+      const sendRes = await sendMessage({
+        sessionId: currentSessionId.value,
+        content: data.text,
+        fileIds: fileIds,
+        sceneType: sceneType.value,
+        isResend: false
+      });
+
+      if (sendRes.code === 200) {
+        // 更新临时用户消息的 ID（如果后端返回了）
+        if (sendRes.data.userMessageId) {
+          userMsg.id = sendRes.data.userMessageId.toString();
+        }
+        messages.value.push(formatMessage(sendRes.data));
+        // 刷新侧边栏列表
+        sidebarRef.value?.fetchSessionList?.();
+      }
+    }
+  } catch (error) {
+    console.error('首次提交失败:', error);
+    ElMessage.error('开启对话失败，请重试');
+  } finally {
+    isProcessing.value = false;
+    isGenerating.value = false;
+  }
 };
 
 // 处理对话中的提交（从底部输入框）
 const handleChatSubmit = async (data: { text: string, files: UploadedFile[] }) => {
+  if (!currentSessionId.value) return;
   if ((!data.text || !data.text.trim()) && (!data.files || data.files.length === 0)) {
     return;
   }
-  if (isProcessing.value) {
-    return;
-  }
-  
-  // 停止正在进行的生成
-  stopCurrentGeneration();
-  
+  if (isProcessing.value) return;
+
   isProcessing.value = true;
   
-  // 添加用户消息
-  const userMessage: Message = {
-    id: generateId(),
-    type: 'user',
-    content: data.text || '',
-    files: data.files,
-    timestamp: Date.now()
-  };
-  
-  messages.value.push(userMessage);
-  
-  // 清空输入框
-  inputText.value = '';
-  
-  // 模拟AI回复
-  await simulateAIResponse(data.text || '', data.files);
-  
-  isProcessing.value = false;
+  try {
+    // 1. 添加用户消息到本地
+    const userMsg: Message = {
+      id: `temp-user-${Date.now()}`,
+      type: 'user',
+      content: data.text,
+      files: data.files,
+      timestamp: Date.now()
+    };
+    messages.value.push(userMsg);
+    inputText.value = '';
+
+    // 2. 上传文件（如果有）
+    const fileIds = await uploadFiles(data.files, currentSessionId.value);
+
+    // 3. 发送消息
+    isGenerating.value = true;
+    const sendRes = await sendMessage({
+      sessionId: currentSessionId.value,
+      content: data.text,
+      fileIds: fileIds,
+      sceneType: sceneType.value,
+      isResend: false
+    });
+
+    if (sendRes.code === 200) {
+      // 更新临时用户消息的 ID（如果后端返回了）
+      if (sendRes.data.userMessageId) {
+        userMsg.id = sendRes.data.userMessageId.toString();
+      }
+      messages.value.push(formatMessage(sendRes.data));
+    }
+  } catch (error) {
+    console.error('发送消息失败:', error);
+    ElMessage.error('发送失败，请重试');
+  } finally {
+    isProcessing.value = false;
+    isGenerating.value = false;
+  }
 };
 
-// 处理停止生成
-const handleStopGeneration = () => {
-  console.log('Stop generation triggered');
-  stopCurrentGeneration();
+// 处理编辑消息
+const handleEditMessage = async (messageId: string, newContent: string) => {
+  if (!currentSessionId.value) return;
+  
+  const messageIndex = messages.value.findIndex(m => m.id === messageId);
+  if (messageIndex === -1) return;
+
+  // 检查是否为有效 ID (后端返回的数字 ID)
+  const numericId = parseInt(messageId);
+  if (isNaN(numericId)) {
+    ElMessage.warning('消息暂未就绪，请稍后重试');
+    return;
+  }
+
+  isProcessing.value = true;
+  isGenerating.value = true;
+  
+  try {
+    const res = await editAndRegenerate({
+      sessionId: currentSessionId.value,
+      messageId: numericId,
+      newContent
+    });
+
+    if (res.code === 200) {
+      // 移除该消息之后的所有消息
+      messages.value = messages.value.slice(0, messageIndex);
+      // 添加编辑后的用户消息
+      messages.value.push({
+        id: messageId,
+        type: 'user',
+        content: newContent,
+        timestamp: Date.now(),
+        edited: true
+      });
+      // 添加 AI 回复
+      messages.value.push(formatMessage(res.data));
+    }
+  } catch (error) {
+    console.error('编辑消息失败:', error);
+    ElMessage.error('操作失败');
+  } finally {
+    isProcessing.value = false;
+    isGenerating.value = false;
+  }
 };
 
-// 处理侧边栏事件
-const handleSelectHistory = (id: string) => {
-  console.log("选中历史记录:", id);
+// 处理侧边栏事件：选择历史记录
+const handleSelectHistory = async (id: string) => {
+  currentSessionId.value = id;
+  isProcessing.value = true;
+  
+  try {
+    const res = await getSessionDetail({ sessionId: id });
+    if (res.code === 200) {
+      messages.value = res.data.history.map(item => formatMessage(item));
+      sceneType.value = res.data.sessionInfo.sceneType;
+    }
+  } catch (error) {
+    console.error('加载会话详情失败:', error);
+    ElMessage.error('加载失败');
+  } finally {
+    isProcessing.value = false;
+  }
 };
 
 const handleNewChat = () => {
-  console.log("开启新对话");
-  // 停止正在进行的生成
-  stopCurrentGeneration();
-  inputText.value = "";
+  currentSessionId.value = null;
   messages.value = [];
+  inputText.value = "";
+  isGenerating.value = false;
+  isProcessing.value = false;
 };
 
 const handleUpdateUser = () => {
-  console.log("修改个人信息");
+  // 跳转到个人中心
+  window.location.href = '/personal';
 };
 </script>
 

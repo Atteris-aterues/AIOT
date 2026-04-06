@@ -18,8 +18,8 @@
       <div class="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl">
         
         <!-- 步骤提示 -->
-        <div class="mb-8">
-          <div class="flex items-center justify-between relative">
+        <div class="mb-10">
+          <div class="flex items-center justify-between relative max-w-[280px] mx-auto">
             <!-- 连接线背景 -->
             <div class="absolute left-0 right-0 top-5 h-[2px] bg-gray-300 -z-10"></div>
             
@@ -38,7 +38,7 @@
                 <span v-if="currentStep > 1" class="text-lg">✓</span>
                 <span v-else class="text-lg">1</span>
               </div>
-              <span class="mt-2 text-sm" :class="currentStep >= 1 ? 'text-[#8B0000]' : 'text-gray-400'">验证账号</span>
+              <span class="mt-2 text-sm" :class="currentStep >= 1 ? 'text-[#8B0000]' : 'text-gray-400'">填写信息</span>
             </div>
             
             <!-- 步骤2 -->
@@ -47,75 +47,29 @@
                 class="flex h-10 w-10 items-center justify-center rounded-full text-white transition-all"
                 :class="currentStep >= 2 ? 'bg-[#8B0000]' : 'bg-gray-300'"
               >
-                <span v-if="currentStep > 2" class="text-lg">✓</span>
-                <span v-else class="text-lg">2</span>
+                <span class="text-lg">2</span>
               </div>
-              <span class="mt-2 text-sm" :class="currentStep >= 2 ? 'text-[#8B0000]' : 'text-gray-400'">设置密码</span>
-            </div>
-            
-            <!-- 步骤3 -->
-            <div class="flex flex-col items-center bg-white px-2">
-              <div 
-                class="flex h-10 w-10 items-center justify-center rounded-full text-white transition-all"
-                :class="currentStep >= 3 ? 'bg-[#8B0000]' : 'bg-gray-300'"
-              >
-                <span class="text-lg">3</span>
-              </div>
-              <span class="mt-2 text-sm" :class="currentStep >= 3 ? 'text-[#8B0000]' : 'text-gray-400'">注册成功</span>
+              <span class="mt-2 text-sm" :class="currentStep >= 2 ? 'text-[#8B0000]' : 'text-gray-400'">注册成功</span>
             </div>
           </div>
         </div>
 
-        <!-- 步骤1：验证账号 -->
+        <!-- 步骤1：填写信息 -->
         <div v-if="currentStep === 1" class="space-y-6">
-          <h2 class="text-2xl font-bold text-gray-800">验证手机号或邮箱</h2>
+          <h2 class="text-2xl font-bold text-gray-800">账号注册</h2>
           
           <!-- 账号输入框 -->
           <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">账号</label>
             <input
               v-model="form.account"
               type="text"
-              placeholder="手机号 / 邮箱"
+              placeholder="请输入用户名"
               class="w-full rounded-lg border border-gray-300 p-3 transition-all focus:border-[#8B0000] focus:outline-none focus:ring-2 focus:ring-[#8B0000]/20"
             />
           </div>
-          
-          <!-- 提示文字 -->
-          <p class="text-sm text-gray-500">建议使用常用手机号，便于接收通知</p>
-          
-          <!-- 验证码 -->
-          <div class="flex gap-2">
-            <input
-              v-model="form.verificationCode"
-              type="text"
-              placeholder="请输入验证码"
-              class="flex-1 rounded-lg border border-gray-300 p-3 transition-all focus:border-[#8B0000] focus:outline-none focus:ring-2 focus:ring-[#8B0000]/20"
-            />
-            <button
-              @click="sendVerificationCode"
-              :disabled="codeSending || codeCountdown > 0 || !form.account"
-              class="whitespace-nowrap rounded-lg bg-gradient-to-r from-[#8B0000] to-[#FF69B4] px-4 py-3 text-white transition-all hover:brightness-75 disabled:opacity-50"
-            >
-              <span v-if="codeSending">发送中...</span>
-              <span v-else-if="codeCountdown > 0">{{ codeCountdown }}秒后重发</span>
-              <span v-else>获取验证码</span>
-            </button>
-          </div>
 
-          <!-- 继续按钮 -->
-          <button
-            @click="nextStep"
-            :disabled="!canProceedToStep2"
-            class="w-full rounded-lg bg-gradient-to-r from-[#8B0000] via-[#FF0000] via-[#FF69B4] via-[#9370DB] to-[#8A2BE2] py-3 font-medium text-white transition-all hover:brightness-75 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            继续
-          </button>
-        </div>
-
-        <!-- 步骤2：设置密码 -->
-        <div v-else-if="currentStep === 2" class="space-y-6">
-          <h2 class="text-2xl font-bold text-gray-800">设置密码</h2>
-          
+          <!-- 密码输入框 -->
           <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">密码</label>
             <input
@@ -129,7 +83,6 @@
             <!-- 密码强度提示 -->
             <div class="mt-2">
               <div class="flex items-center gap-2">
-                <!-- 强度指示条 -->
                 <div class="flex gap-1 flex-1">
                   <div 
                     class="h-1 flex-1 rounded-full transition-all duration-300"
@@ -140,7 +93,6 @@
                     ]"
                   ></div>
                 </div>
-                <!-- 强度文字 -->
                 <span class="text-xs font-medium" :class="passwordStrengthColor">
                   {{ passwordStrength }}
                 </span>
@@ -160,26 +112,19 @@
             <p v-if="passwordMismatch" class="mt-1 text-xs text-red-500">两次输入的密码不一致</p>
           </div>
 
-          <!-- 上一步/下一步按钮 -->
-          <div class="flex gap-4">
-            <button
-              @click="prevStep"
-              class="flex-1 rounded-lg border-2 border-[#8B0000] py-3 font-medium text-[#8B0000] transition-all hover:bg-[#8B0000] hover:text-white"
-            >
-              上一步
-            </button>
-            <button
-              @click="nextStep"
-              :disabled="!canProceedToStep3"
-              class="flex-1 rounded-lg bg-gradient-to-r from-[#8B0000] via-[#FF0000] via-[#FF69B4] via-[#9370DB] to-[#8A2BE2] py-3 font-medium text-white transition-all hover:brightness-75 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              完成注册
-            </button>
-          </div>
+          <!-- 注册按钮 -->
+          <button
+            @click="handleRegister"
+            :disabled="!canSubmit || loading"
+            class="w-full rounded-lg bg-gradient-to-r from-[#8B0000] via-[#FF0000] via-[#FF69B4] via-[#9370DB] to-[#8A2BE2] py-3 font-medium text-white transition-all hover:brightness-75 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span v-if="loading">注册中...</span>
+            <span v-else>立即注册</span>
+          </button>
         </div>
 
-        <!-- 步骤3：注册成功 -->
-        <div v-else-if="currentStep === 3" class="space-y-6 py-4 text-center">
+        <!-- 步骤2：注册成功 -->
+        <div v-else-if="currentStep === 2" class="space-y-6 py-4 text-center">
           <!-- 成功图标 -->
           <div class="flex justify-center">
             <div class="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-r from-[#8B0000] to-[#FF69B4]">
@@ -215,20 +160,18 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { register } from '@/api/user'
+import { ElMessage } from 'element-plus'
 
 const router = useRouter()
+const loading = ref(false)
 
 // 当前步骤
 const currentStep = ref(1)
 
-// 验证码发送状态
-const codeSending = ref(false)
-const codeCountdown = ref(0)
-
 // 表单数据
 const form = reactive({
   account: '',
-  verificationCode: '',
   password: '',
   confirmPassword: ''
 })
@@ -312,8 +255,7 @@ const checkPasswordStrength = () => {
 // 计算进度条宽度
 const progressWidth = computed(() => {
   if (currentStep.value === 1) return '0%'
-  if (currentStep.value === 2) return '50%'
-  if (currentStep.value === 3) return '100%'
+  if (currentStep.value === 2) return '100%'
   return '0%'
 })
 
@@ -325,53 +267,33 @@ const passwordMismatch = computed(() => {
   return false
 })
 
-// 是否可以进入第二步
-const canProceedToStep2 = computed(() => {
-  return form.account && form.verificationCode
-})
-
-// 是否可以进入第三步
-const canProceedToStep3 = computed(() => {
-  return form.password && 
+// 是否可以提交
+const canSubmit = computed(() => {
+  return form.account && 
+         form.password && 
          form.confirmPassword && 
          !passwordMismatch.value &&
          passwordScore.value >= 1 // 至少达到中等强度
 })
 
-// 发送验证码
-const sendVerificationCode = () => {
-  if (!form.account) {
-    alert('请输入手机号或邮箱')
-    return
-  }
+// 注册
+const handleRegister = async () => {
+  if (!canSubmit.value) return
   
-  codeSending.value = true
-  
-  // 模拟发送验证码
-  setTimeout(() => {
-    codeSending.value = false
-    codeCountdown.value = 60
-    
-    const timer = setInterval(() => {
-      codeCountdown.value--
-      if (codeCountdown.value <= 0) {
-        clearInterval(timer)
-      }
-    }, 1000)
-    
-    alert('验证码已发送：123456（演示模式）')
-  }, 1000)
-}
-
-// 下一步
-const nextStep = () => {
-  if (currentStep.value === 1 && canProceedToStep2.value) {
-    currentStep.value = 2
-  } else if (currentStep.value === 2 && canProceedToStep3.value) {
-    // 模拟注册请求
-    setTimeout(() => {
-      currentStep.value = 3
-    }, 1000)
+  loading.value = true
+  try {
+    const res = await register({
+      username: form.account,
+      password: form.password
+    })
+    if (res.code === 200) {
+      currentStep.value = 2
+      ElMessage.success('注册成功')
+    }
+  } catch (error: any) {
+    console.error('注册失败:', error)
+  } finally {
+    loading.value = false
   }
 }
 
