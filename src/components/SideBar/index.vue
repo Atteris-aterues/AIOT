@@ -117,9 +117,9 @@ const saveRename = async () => {
         title: newTitle.value.trim()
       })
       if (res.code === 200) {
-        const index = historyItems.value.findIndex(item => item.id === renamingId.value)
-        if (index !== -1) {
-          historyItems.value[index].title = res.data.title
+        const index = historyItems.value.findIndex((item) => item.id === renamingId.value)
+        if (index !== -1 && historyItems.value[index]) {
+          historyItems.value[index]!.title = res.data.title
         }
         ElMessage.success('重命名成功')
       }

@@ -297,13 +297,6 @@ const handleRegister = async () => {
   }
 }
 
-// 上一步
-const prevStep = () => {
-  if (currentStep.value > 1) {
-    currentStep.value--
-  }
-}
-
 // 返回上一页
 const goBack = () => {
   router.back()

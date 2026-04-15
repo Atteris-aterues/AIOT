@@ -149,11 +149,7 @@ export const uploadMaterial = (file: File, sessionId: string): Promise<MaterialU
   const formData = new FormData();
   formData.append('file', file);
   formData.append('sessionId', sessionId);
-  return request.post('material/upload', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
+  return request.post('material/upload', formData);
 };
 
 /**

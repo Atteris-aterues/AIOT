@@ -10,7 +10,7 @@
       </div>
       
       <!-- 正常显示消息内容 -->
-      <div v-if="!isEditing" class="message-text">{{ displayText }}</div>
+      <div v-if="!isEditing" class="message-text markdown-body" v-html="parsedContent"></div>
       
       <!-- 编辑模式 -->
       <div v-else class="edit-mode">
@@ -53,6 +53,13 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import MessageActions from './MessageActions.vue'  
 import type { Message } from './types'
+import { marked } from 'marked'
+
+// 配置 marked
+marked.setOptions({
+  breaks: true, // 允许换行符
+  gfm: true,    // 使用 GitHub 风格的 Markdown
+})
 
 const props = defineProps<{
   message: Message
@@ -70,7 +77,13 @@ const displayContent = ref('')
 const isTyping = ref(false)
 let typingInterval: number | null = null
 
-// 显示的文本
+// 解析 Markdown 内容
+const parsedContent = computed(() => {
+  const content = displayContent.value || props.message.content || ''
+  return marked.parse(content)
+})
+
+// 显示的文本 (保留原有逻辑，尽管现在主要使用 parsedContent)
 const displayText = computed(() => {
   return displayContent.value || props.message.content
 })
@@ -272,9 +285,73 @@ onUnmounted(() => {
 
 .message-text {
   font-size: 0.95rem;
-  line-height: 1.5;
+  line-height: 1.6;
   color: #333;
   word-wrap: break-word;
+}
+
+/* Markdown 样式 */
+:deep(.markdown-body) {
+  font-family: inherit;
+}
+
+:deep(.markdown-body h1),
+:deep(.markdown-body h2),
+:deep(.markdown-body h3),
+:deep(.markdown-body h4) {
+  margin-top: 16px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+:deep(.markdown-body h1) { font-size: 1.5rem; }
+:deep(.markdown-body h2) { font-size: 1.25rem; }
+:deep(.markdown-body h3) { font-size: 1.1rem; }
+
+:deep(.markdown-body p) {
+  margin-bottom: 8px;
+}
+
+:deep(.markdown-body ul),
+:deep(.markdown-body ol) {
+  margin-bottom: 8px;
+  padding-left: 20px;
+}
+
+:deep(.markdown-body li) {
+  margin-bottom: 4px;
+}
+
+:deep(.markdown-body code) {
+  padding: 0.2em 0.4em;
+  margin: 0;
+  font-size: 85%;
+  background-color: rgba(175, 184, 193, 0.2);
+  border-radius: 6px;
+  font-family: monospace;
+}
+
+:deep(.markdown-body pre) {
+  padding: 16px;
+  overflow: auto;
+  font-size: 85%;
+  line-height: 1.45;
+  background-color: #f6f8fa;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+:deep(.markdown-body pre code) {
+  padding: 0;
+  background-color: transparent;
+}
+
+:deep(.markdown-body blockquote) {
+  padding: 0 1em;
+  color: #656d76;
+  border-left: 0.25em solid #d0d7de;
+  margin-bottom: 8px;
 }
 
 /* 编辑模式样式 */

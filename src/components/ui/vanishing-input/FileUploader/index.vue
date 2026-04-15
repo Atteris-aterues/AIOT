@@ -149,7 +149,7 @@ const handleDragLeave = (e: DragEvent) => {
 // 移除文件
 const removeFile = (index: number) => {
   const removed = uploadedFiles.value.splice(index, 1)[0]
-  if (removed.preview) URL.revokeObjectURL(removed.preview)
+  if (removed && removed.preview) URL.revokeObjectURL(removed.preview)
   emit('file-removed', index)
   if (uploadedFiles.value.length === 0) {
     emit('files-cleared')

@@ -61,7 +61,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import VanishingInput from "./ui/vanishing-input/VanishingInput.vue";
 import MessageList from "./Dialog/MessageList.vue";
 import SideBar from "@/components/SideBar/index.vue";
@@ -73,7 +73,8 @@ import {
   sendMessage, 
   stopChat, 
   editAndRegenerate,
-  uploadMaterial 
+  uploadMaterial,
+  getMaterialStatus 
 } from '@/api/chat'
 import { ElMessage } from 'element-plus'
 
@@ -122,19 +123,77 @@ const formatMessage = (item: any): Message => {
 const uploadFiles = async (files: UploadedFile[], sessionId: string): Promise<number[]> => {
   if (!files || files.length === 0) return [];
   
-  const uploadPromises = files.map(file => {
-    // 这里需要将 UploadedFile 转换为 File 对象，或者调整接口
-    // 假设 UploadedFile 包含原始 File 对象
+  // 检查文件大小 (限制为 10MB)
+  const MAX_SIZE = 10 * 1024 * 1024;
+  const largeFiles = files.filter(f => f.file && f.file.size > MAX_SIZE);
+  if (largeFiles.length > 0) {
+    const fileNames = largeFiles.map(f => f.name).join(', ');
+    ElMessage.warning(`文件 [${fileNames}] 超过 10MB 限制，请上传较小的文件`);
+    return [];
+  }
+
+  const uploadPromises = files.map(async file => {
     if (file.file) {
-      return uploadMaterial(file.file, sessionId);
+      try {
+        const res = await uploadMaterial(file.file, sessionId);
+        return res;
+      } catch (error: any) {
+        if (error.response?.status === 413) {
+          ElMessage.error(`文件 ${file.name} 太大，服务器拒绝处理`);
+        } else {
+          ElMessage.error(`文件 ${file.name} 上传失败`);
+        }
+        return null;
+      }
     }
-    return Promise.resolve(null);
+    return null;
   });
 
   const results = await Promise.all(uploadPromises);
-  return results
+  const fileIds = results
     .filter((res): res is any => res !== null && res.code === 200)
     .map(res => res.data.fileId);
+
+  if (fileIds.length > 0) {
+    await pollFilesStatus(fileIds);
+  }
+  
+  return fileIds;
+};
+
+// 轮询文件解析状态
+const pollFilesStatus = async (fileIds: number[]) => {
+  const checkStatus = async (fileId: number): Promise<void> => {
+    let attempts = 0;
+    const maxAttempts = 30; // 最大轮询 60 秒 (2s * 30)
+    
+    while (attempts < maxAttempts) {
+      try {
+        const res = await getMaterialStatus({ fileId });
+        if (res.code === 200 && res.data.status === 'completed') {
+          return;
+        }
+        if (res.code === 200 && res.data.status === 'error') {
+          throw new Error('文件解析失败');
+        }
+      } catch (error) {
+        console.error(`检查文件 ${fileId} 状态失败:`, error);
+      }
+      
+      attempts++;
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    throw new Error('文件解析超时，请稍后重试');
+  };
+
+  try {
+    ElMessage.info('正在解析文件，请稍候...');
+    await Promise.all(fileIds.map(id => checkStatus(id)));
+    ElMessage.success('文件解析完成');
+  } catch (error: any) {
+    ElMessage.error(error.message || '文件解析过程中出现问题');
+    throw error;
+  }
 };
 
 // 处理首次提交（从中间输入框）

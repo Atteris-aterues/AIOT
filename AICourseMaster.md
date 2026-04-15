@@ -21,7 +21,7 @@ generator: "@tarslib/widdershins v4.0.30"
 
 # AICourseMaster
 
-Base URL: https://55be0101.r29.cpolar.top/api/v1
+Base URL: https://299aa5ac.r11.vip.cpolar.cn/api/v1
 
 # Authentication
 
